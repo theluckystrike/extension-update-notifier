@@ -1,0 +1,43 @@
+{
+    "name": "extension-update-notifier",
+    "version": "0.1.0",
+    "description": "Show 'What's New' changelog to Chrome extension users after updates — version detection, UI templates, feature highlights, and dismissal tracking.",
+    "author": "Zovo <hello@zovo.one>",
+    "license": "MIT",
+    "keywords": [
+        "chrome-extension",
+        "update-notifier",
+        "whats-new",
+        "changelog",
+        "onInstalled",
+        "version-update",
+        "manifest-v3",
+        "browser-extension",
+        "release-notes",
+        "onboarding"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/theluckystrike/extension-update-notifier.git"
+    },
+    "homepage": "https://github.com/theluckystrike/extension-update-notifier",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "test": "jest",
+        "lint": "eslint src --ext .ts",
+        "prepublishOnly": "npm run build"
+    },
+    "devDependencies": {
+        "@types/chrome": "^0.0.260",
+        "@types/jest": "^29.5.12",
+        "typescript": "^5.3.3"
+    }
+}
