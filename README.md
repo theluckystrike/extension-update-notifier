@@ -1,35 +1,134 @@
-# extension-update-notifier — "What's New" for Chrome Extensions
+# extension-update-notifier
 
-[![npm](https://img.shields.io/npm/v/extension-update-notifier.svg)](https://www.npmjs.com/package/extension-update-notifier)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+Check for extension updates and notify users with changelog information.
 
-> **Built by [Zovo](https://zovo.one)** — used in all 18+ Zovo extensions
+## Overview
 
-**Show beautiful changelog UI to users after extension updates.** Version detection, styled cards, modal overlay, and dismissal tracking.
+extension-update-notifier helps Chrome extensions check for updates and display meaningful notification to users about what's new in the latest version.
 
-## 📦 Install
+## Installation
+
 ```bash
 npm install extension-update-notifier
 ```
 
-## 🚀 Quick Start
-```typescript
-import { UpdateNotifier, WhatsNewUI } from 'extension-update-notifier';
+## Usage
+
+### Basic Setup
+
+```javascript
+import { UpdateNotifier } from 'extension-update-notifier';
+
 const notifier = new UpdateNotifier({
-  changelog: [
-    { version: '2.1.0', date: '2025-01-15', changes: [
-      { type: 'feature', text: 'Dark mode support' },
-      { type: 'fix', text: 'Fixed memory leak' },
-    ]},
-  ],
+  repo: 'yourusername/your-extension',
+  currentVersion: '1.0.0',
 });
-notifier.init(); // In background
-// In popup/options:
-if (await notifier.hasPendingUpdate()) {
-  const changes = notifier.getChangesSince('2.0.0');
-  WhatsNewUI.showModal(changes, () => notifier.dismiss());
+
+notifier.checkForUpdates();
+```
+
+### With Custom Notification
+
+```javascript
+import { UpdateNotifier } from 'extension-update-notifier';
+
+const notifier = new UpdateNotifier({
+  repo: 'yourusername/your-extension',
+  currentVersion: '1.0.0',
+  notificationType: 'popup',  // 'popup', 'badge', 'notification'
+});
+
+notifier.on('update-available', (info) => {
+  console.log(`New version ${info.version} available!`);
+  console.log(`Changes: ${info.changelog}`);
+});
+
+notifier.checkForUpdates();
+```
+
+### With User Notification
+
+```javascript
+notifier.on('update-available', async (info) => {
+  // Show browser notification
+  new Notification('Update Available', {
+    body: `Version ${info.version} is now available!`,
+    icon: '/images/icon.png',
+  });
+  
+  // Or update badge
+  chrome.runtime.requestUpdateCheck();
+});
+```
+
+## API
+
+### UpdateNotifier Options
+
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| repo | string | yes | GitHub repo (user/repo) |
+| currentVersion | string | yes | Current extension version |
+| notificationType | string | no | How to notify (popup/badge/notification) |
+| checkInterval | number | no | Hours between checks (default: 24) |
+
+### Events
+
+- `update-available` - New version available
+- `up-to-date` - Already on latest version
+- `error` - Error checking for updates
+
+### Methods
+
+- `checkForUpdates()` - Manually check for updates
+- `getReleaseNotes()` - Get changelog for latest version
+
+## Manifest Configuration
+
+In your `manifest.json`:
+
+```json
+{
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["storage"]
 }
 ```
 
-## 📄 License
-MIT — [Zovo](https://zovo.one)
+## Example: Full Implementation
+
+```javascript
+// background.js
+import { UpdateNotifier } from 'extension-update-notifier';
+
+const notifier = new UpdateNotifier({
+  repo: 'yourusername/your-extension',
+  currentVersion: chrome.runtime.getManifest().version,
+  checkInterval: 12,  // Check every 12 hours
+});
+
+// Listen for updates
+notifier.on('update-available', (info) => {
+  // Store update info for popup to display
+  chrome.storage.local.set({ 
+    availableUpdate: info 
+  });
+  
+  // Update badge to show update is available
+  chrome.action.setBadgeText({ text: '!' });
+  chrome.action.setBadgeBackgroundColor({ color: '#4CAF50' });
+});
+
+// Check on startup
+notifier.checkForUpdates();
+```
+
+## Browser Support
+
+- Chrome 90+
+- Edge 90+
+
+## License
+
+MIT
