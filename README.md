@@ -1,94 +1,130 @@
 # extension-update-notifier
 
-Check for extension updates and notify users with changelog information.
+A TypeScript library for Chrome extensions that detects version updates via the chrome.runtime.onInstalled API and shows users a "What's New" changelog. Handles version comparison, update persistence in chrome.storage.local, UI rendering, modal overlays, dismissal tracking, and full version history.
 
-## Overview
+Built for Manifest V3 service workers and content scripts.
 
-extension-update-notifier helps Chrome extensions check for updates and display meaningful notification to users about what's new in the latest version.
 
-## Installation
+INSTALLATION
 
 ```bash
 npm install extension-update-notifier
 ```
 
-## Usage
 
-### Basic Setup
+REQUIREMENTS
 
-```javascript
+- Chrome 90+ or Edge 90+
+- Manifest V3 with "storage" permission
+- TypeScript 5.x recommended
+
+
+QUICK START
+
+Set up the notifier in your background service worker.
+
+```typescript
+// background.ts
 import { UpdateNotifier } from 'extension-update-notifier';
 
 const notifier = new UpdateNotifier({
-  repo: 'yourusername/your-extension',
-  currentVersion: '1.0.0',
+  changelog: [
+    {
+      version: '1.2.0',
+      date: '2025-03-15',
+      changes: [
+        { type: 'feature', text: 'Added dark mode support' },
+        { type: 'fix', text: 'Fixed popup rendering on high-DPI screens' },
+        { type: 'improvement', text: 'Faster startup time' },
+      ],
+    },
+  ],
+  showOnMajor: true,
+  showOnMinor: true,
+  showOnPatch: false,
+  onUpdate: (fromVersion, toVersion) => {
+    console.log(`Updated from ${fromVersion} to ${toVersion}`);
+  },
 });
 
-notifier.checkForUpdates();
+notifier.init();
 ```
 
-### With Custom Notification
+Then show the changelog in your popup or options page.
 
-```javascript
-import { UpdateNotifier } from 'extension-update-notifier';
+```typescript
+// popup.ts
+import { UpdateNotifier, WhatsNewUI } from 'extension-update-notifier';
 
-const notifier = new UpdateNotifier({
-  repo: 'yourusername/your-extension',
-  currentVersion: '1.0.0',
-  notificationType: 'popup',  // 'popup', 'badge', 'notification'
-});
+const notifier = new UpdateNotifier({ changelog });
 
-notifier.on('update-available', (info) => {
-  console.log(`New version ${info.version} available!`);
-  console.log(`Changes: ${info.changelog}`);
-});
-
-notifier.checkForUpdates();
+const pending = await notifier.getPendingUpdate();
+if (pending) {
+  const entries = notifier.getChangesSince(pending.fromVersion);
+  WhatsNewUI.showModal(entries, () => notifier.dismiss());
+}
 ```
 
-### With User Notification
 
-```javascript
-notifier.on('update-available', async (info) => {
-  // Show browser notification
-  new Notification('Update Available', {
-    body: `Version ${info.version} is now available!`,
-    icon: '/images/icon.png',
-  });
-  
-  // Or update badge
-  chrome.runtime.requestUpdateCheck();
-});
+API REFERENCE
+
+UpdateNotifier
+
+The core class. Listens for chrome.runtime.onInstalled events and tracks pending updates in chrome.storage.local.
+
+Constructor takes an UpdateConfig object.
+
+```typescript
+interface UpdateConfig {
+  changelog: ChangelogEntry[];
+  showOnMajor?: boolean;   // default true
+  showOnMinor?: boolean;   // default true
+  showOnPatch?: boolean;   // default false
+  onUpdate?: (fromVersion: string, toVersion: string) => void;
+}
+
+interface ChangelogEntry {
+  version: string;
+  date: string;
+  changes: Array<{
+    type: 'feature' | 'fix' | 'improvement' | 'breaking';
+    text: string;
+  }>;
+}
 ```
 
-## API
+Methods on UpdateNotifier instances.
 
-### UpdateNotifier Options
+- init() - Register the onInstalled listener. Call once in your service worker.
+- hasPendingUpdate() - Returns Promise<boolean>. True if the user has not dismissed the latest update notification.
+- getPendingUpdate() - Returns Promise<{ fromVersion, toVersion } | null>.
+- getChangesSince(version) - Returns all ChangelogEntry items newer than the given version.
+- dismiss() - Clears the pending update from storage.
 
-| Option | Type | Required | Description |
-|--------|------|----------|-------------|
-| repo | string | yes | GitHub repo (user/repo) |
-| currentVersion | string | yes | Current extension version |
-| notificationType | string | no | How to notify (popup/badge/notification) |
-| checkInterval | number | no | Hours between checks (default: 24) |
+WhatsNewUI
 
-### Events
+Static methods for rendering changelog entries into the DOM.
 
-- `update-available` - New version available
-- `up-to-date` - Already on latest version
-- `error` - Error checking for updates
+- WhatsNewUI.render(container, entries, options?) - Renders changelog entries into a given HTMLElement. Options accept a title string and an onDismiss callback.
+- WhatsNewUI.showModal(entries, onDismiss?) - Creates a full-screen modal overlay with the changelog. Clicking outside the modal or the close button triggers onDismiss.
 
-### Methods
+VersionTracker
 
-- `checkForUpdates()` - Manually check for updates
-- `getReleaseNotes()` - Get changelog for latest version
+Static utility class for tracking the full version history of the extension.
 
-## Manifest Configuration
+- VersionTracker.recordVersion() - Stores the current version with a timestamp in chrome.storage.local if not already recorded.
+- VersionTracker.getHistory() - Returns Promise<Array<{ version, timestamp }>>.
+- VersionTracker.isFirstRun() - Returns true if the history contains one or zero entries.
+- VersionTracker.getPreviousVersion() - Returns the second-to-last version string, or null.
 
-In your `manifest.json`:
+
+MANIFEST CONFIGURATION
+
+Your manifest.json needs the storage permission.
 
 ```json
 {
+  "manifest_version": 3,
   "background": {
     "service_worker": "background.js"
   },
@@ -96,39 +132,92 @@ In your `manifest.json`:
 }
 ```
 
-## Example: Full Implementation
 
-```javascript
-// background.js
-import { UpdateNotifier } from 'extension-update-notifier';
+FULL EXAMPLE
+
+```typescript
+// background.ts
+import { UpdateNotifier, VersionTracker } from 'extension-update-notifier';
+
+const changelog = [
+  {
+    version: '2.0.0',
+    date: '2025-06-01',
+    changes: [
+      { type: 'breaking', text: 'Dropped support for Manifest V2' },
+      { type: 'feature', text: 'New side panel UI' },
+    ],
+  },
+  {
+    version: '1.1.0',
+    date: '2025-04-10',
+    changes: [
+      { type: 'feature', text: 'Keyboard shortcuts' },
+      { type: 'fix', text: 'Memory leak in content script' },
+    ],
+  },
+];
 
 const notifier = new UpdateNotifier({
-  repo: 'yourusername/your-extension',
-  currentVersion: chrome.runtime.getManifest().version,
-  checkInterval: 12,  // Check every 12 hours
+  changelog,
+  showOnMajor: true,
+  showOnMinor: true,
+  showOnPatch: false,
+  onUpdate: (from, to) => {
+    chrome.action.setBadgeText({ text: 'NEW' });
+  },
 });
 
-// Listen for updates
-notifier.on('update-available', (info) => {
-  // Store update info for popup to display
-  chrome.storage.local.set({ 
-    availableUpdate: info 
-  });
-  
-  // Update badge to show update is available
-  chrome.action.setBadgeText({ text: '!' });
-  chrome.action.setBadgeBackgroundColor({ color: '#4CAF50' });
-});
-
-// Check on startup
-notifier.checkForUpdates();
+notifier.init();
+VersionTracker.recordVersion();
 ```
 
-## Browser Support
+```typescript
+// popup.ts
+import { UpdateNotifier, WhatsNewUI, VersionTracker } from 'extension-update-notifier';
 
-- Chrome 90+
-- Edge 90+
+const notifier = new UpdateNotifier({ changelog });
 
-## License
+const pending = await notifier.getPendingUpdate();
+if (pending) {
+  const entries = notifier.getChangesSince(pending.fromVersion);
 
-MIT
+  WhatsNewUI.showModal(entries, async () => {
+    await notifier.dismiss();
+    chrome.action.setBadgeText({ text: '' });
+  });
+}
+```
+
+
+CHANGE TYPES
+
+The UI renders each change type with a visual indicator.
+
+- feature - New functionality
+- fix - Bug fix
+- improvement - Enhancement to existing behavior
+- breaking - Breaking change that may require user action
+
+
+DEVELOPMENT
+
+```bash
+git clone https://github.com/theluckystrike/extension-update-notifier.git
+cd extension-update-notifier
+npm install
+npm run build
+npm run dev       # watch mode
+npm test
+npm run lint
+```
+
+
+LICENSE
+
+MIT. See LICENSE file.
+
+
+ABOUT
+
+Built by theluckystrike. Part of the Zovo ecosystem at zovo.one.
