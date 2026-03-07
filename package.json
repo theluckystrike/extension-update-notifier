@@ -31,13 +31,15 @@
     "scripts": {
         "build": "tsc",
         "dev": "tsc --watch",
-        "test": "jest",
+        "test": "jest --passWithNoTests",
         "lint": "eslint src --ext .ts",
         "prepublishOnly": "npm run build"
     },
     "devDependencies": {
         "@types/chrome": "^0.0.260",
-        "@types/jest": "^29.5.12",
+        "@types/jest": "^29.5.14",
+        "jest": "^30.2.0",
+        "ts-jest": "^29.4.6",
         "typescript": "^5.3.3"
     }
 }
